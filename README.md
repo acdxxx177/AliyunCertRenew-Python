@@ -215,7 +215,7 @@ crontab -e
 domains:
   - domain: "example.com"
     deploy_type: "cloud"
-    resource_id: 256644 # 云资源 ID
+    resource_id: 256644 # 云资源 ID(暂未支持自动获取，后续可能增加)
 ```
 
 ### 服务器部署（Server）
