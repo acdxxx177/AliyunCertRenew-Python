@@ -204,12 +204,15 @@ def main():
     """主函数"""
     setup_logging()
     logging.info("阿里云证书续期工具启动...")
-    
+
     # 创建阿里云客户端
     client = create_client()
     try:
         # 加载领域配置
-        with open("domains.yaml", "r", encoding="utf-8") as f:
+        # 从环境变量读取配置文件路径，默认为 domains.yaml
+        config_path = os.getenv("DOMAINS_CONFIG_PATH", "domains.yaml")
+        logging.info(f"加载配置文件：{config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
             raw_config = yaml.safe_load(f)
             config = Config(**raw_config)
     except Exception as error:

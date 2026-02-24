@@ -8,9 +8,11 @@ domains:
   # 服务器类型 1
   - domain: "api.example.com"
     deploy_type: "server"
-    cert_path: "/etc/nginx/certs/mysite/"
+    cert_path: "/etc/nginx/certs/mysite/www.pem"
+    key_path: "/etc/nginx/certs/mysite/www.key"
 
   # 服务器类型 2
   - domain: "doc.example.com"
     deploy_type: "server"
-    cert_path: "/var/www/blog/ssl/"
+    cert_path: "/var/www/blog/ssl/www.pem"
+    key_path: "/var/www/blog/ssl/www.key"

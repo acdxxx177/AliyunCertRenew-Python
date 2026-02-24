@@ -1,0 +1,8 @@
+# Aliyun Certificate Renewal cron job
+# 默认每 3 天执行一次，在凌晨 2 点运行
+# 可以通过 CRON_SCHEDULE 环境变量自定义
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+${CRON_SCHEDULE} cd /app && python main.py >> /app/logs/cron.log 2>&1
