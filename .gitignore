@@ -51,3 +51,5 @@ aliyun_cert_renew_*.log
 
 # History
 .history
+
+domains.yaml

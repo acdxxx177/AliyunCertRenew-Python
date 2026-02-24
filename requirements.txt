@@ -1,3 +1,5 @@
 alibabacloud-cas20200407>=1.0.0
 alibabacloud-tea-openapi>=0.3.7
 alibabacloud-tea-util>=0.3.8 
+pydantic>=2.12.5
+pyyaml>=6.0.3
