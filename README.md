@@ -15,8 +15,10 @@
 - [部署方式](#部署方式)
   - [方式一：Docker Compose 部署（推荐）](#方式一 docker-compose-部署推荐)
   - [方式二：Docker 部署](#方式二 docker-部署)
-  - [方式三：本地部署](#方式三本地部署)
+  - [方式三：Shell 脚本部署（推荐用于服务器部署）](#方式三 shell-脚本部署推荐用于服务器部署)
+  - [方式四：本地部署](#方式四本地部署)
 - [配置格式说明](#配置格式说明)
+- [定时任务配置](#定时任务配置)
 - [运行效果](#运行效果)
 - [故障排查](#故障排查)
 - [项目结构](#项目结构)
@@ -189,7 +191,85 @@ crontab -e
 
 ---
 
-### 方式三：本地部署
+### 方式三：Shell 脚本部署（推荐用于服务器部署）
+
+如果你使用 `deploy_type: "server"` 将证书部署到自有服务器，可以使用 `renew_ssl.sh` 脚本。该脚本会自动检测证书是否更新，并在更新后重载 Nginx。
+
+#### 1. 准备文件和目录
+
+```bash
+# 复制配置文件
+cp domains.yaml.example domains.yaml
+
+# 创建必要的目录
+mkdir -p logs ssl
+```
+
+#### 2. 编辑 `renew_ssl.sh` 脚本
+
+编辑 `renew_ssl.sh`，修改以下配置：
+
+```bash
+# 阿里云配置参数
+ALIYUN_ID="your_access_key_id"
+ALIYUN_SECRET="your_access_key_secret"
+
+# 宿主机路径配置
+CONFIG_PATH="/path/to/domains.yaml"      # domains.yaml 配置文件路径
+LOG_PATH="/path/to/logs"                 # 日志目录路径
+SSL_CERT_PATH="/path/to/ssl"             # 证书保存目录路径
+
+# 目标容器名称
+TARGET_CONTAINER="my_nginx"              # Nginx 容器名称
+
+SSL_FILE="/path/to/ssl/www.pem"          # 用于检测变化的证书文件路径
+```
+
+#### 3. 编辑 `domains.yaml`
+
+配置服务器部署类型：
+
+```yaml
+domains:
+  - domain: "api.example.com"
+    deploy_type: "server"
+    cert_path: "/app/ssl/cert.pem"    # 容器内路径，证书将保存到这里
+    key_path: "/app/ssl/key.pem"      # 容器内路径，私钥将保存到这里
+    reload_cmd: ""                    # 容器内重载命令（可选）
+```
+
+> **注意**：`cert_path` 和 `key_path` 是容器内的路径，需要与 `SSL_CERT_PATH` 挂载点对应。
+
+#### 4. 构建镜像（如果还没有构建）
+
+```bash
+docker build -t aliyun-cert-renew .
+```
+
+#### 5. 运行脚本
+
+```bash
+chmod +x renew_ssl.sh
+./renew_ssl.sh
+```
+
+#### 6. 配置定时任务
+
+编辑 crontab：
+
+```bash
+crontab -e
+```
+
+添加以下行（每 3 天凌晨 2 点执行）：
+
+```bash
+0 2 */3 * * /path/to/AliyunCertRenew-Python/renew_ssl.sh >> /path/to/logs/renew.log 2>&1
+```
+
+---
+
+### 方式四：本地部署
 
 #### 1. 安装依赖
 
@@ -222,6 +302,94 @@ crontab -e
 # 添加以下行（每 3 天凌晨 2 点执行）
 0 2 */3 * * cd /path/to/AliyunCertRenew-Python && /usr/bin/python3 main.py
 ```
+
+---
+
+## 定时任务配置
+
+### 方式一：使用 Crontab（推荐）
+
+编辑 crontab：
+
+```bash
+crontab -e
+```
+
+#### Docker Compose 部署
+
+```bash
+# 每 3 天凌晨 2 点执行
+0 2 */3 * * cd /path/to/AliyunCertRenew-Python && docker-compose up --force-recreate
+```
+
+#### Docker 部署
+
+```bash
+# 每 3 天凌晨 2 点执行
+0 2 */3 * * docker run --rm -e ALIYUN_ACCESS_KEY_ID_RENEW="your_access_key_id" -e ALIYUN_ACCESS_KEY_SECRET_RENEW="your_access_key_secret" -v /path/to/domains.yaml:/app/config/domains.yaml:ro -v /path/to/logs:/app/logs aliyun-cert-renew
+```
+
+#### Shell 脚本部署
+
+```bash
+# 每 3 天凌晨 2 点执行
+0 2 */3 * * /path/to/AliyunCertRenew-Python/renew_ssl.sh >> /path/to/logs/renew.log 2>&1
+```
+
+### 方式二：使用 systemd Timer（更现代的方式）
+
+创建 service 文件 `/etc/systemd/system/cert-renew.service`：
+
+```ini
+[Unit]
+Description=Aliyun Certificate Renewal
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/path/to/AliyunCertRenew-Python/renew_ssl.sh
+```
+
+创建 timer 文件 `/etc/systemd/system/cert-renew.timer`：
+
+```ini
+[Unit]
+Description=Run Aliyun Certificate Renewal every 3 days
+Requires=cert-renew.service
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=3d
+Unit=cert-renew.service
+
+[Install]
+WantedBy=timers.target
+```
+
+启用并启动 timer：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable cert-renew.timer
+sudo systemctl start cert-renew.timer
+```
+
+查看 timer 状态：
+
+```bash
+systemctl list-timers
+systemctl status cert-renew.timer
+```
+
+### 方式三：使用项目提供的 crontab 文件
+
+项目提供了 `crontab` 文件模板，可以复制并修改：
+
+```bash
+cp crontab /etc/cron.d/aliyun-cert-renew
+```
+
+编辑 `/etc/cron.d/aliyun-cert-renew`，设置正确的路径和 Cron 表达式。
 
 ---
 
@@ -330,6 +498,8 @@ AliyunCertRenew-Python/
 ├── config_schema.py        # 配置模型定义
 ├── requirements.txt        # Python 依赖包
 ├── domains.yaml.example    # 配置文件示例
+├── crontab                 # Crontab 模板文件
+├── renew_ssl.sh            # Shell 脚本（用于服务器部署）
 ├── Dockerfile              # Docker 镜像配置
 ├── docker-compose.yml      # Docker Compose 配置
 ├── docker-entrypoint.sh    # 容器启动脚本
