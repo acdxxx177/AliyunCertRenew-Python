@@ -153,7 +153,7 @@ def apply_new_cert(client: Client, domain: str) -> Optional[int]:
         logging.error(f"申请证书失败：{error}")
         return None
 
-def deploy_cert(client: Client, cert_id: int, resource_ids: int) -> None:
+def deploy_cert(client: Client, cert_id: int, resource_ids: str) -> None:
     """部署证书"""
     # 获取联系人信息
     contact_request = cas_models.ListContactRequest()
@@ -168,7 +168,7 @@ def deploy_cert(client: Client, cert_id: int, resource_ids: int) -> None:
     deploy_request = cas_models.CreateDeploymentJobRequest(
         name=f"aliyun-cert-renew-auto-{int(time.time())}",
         resource_ids=resource_ids,
-        cert_ids=str(cert_id),
+        cert_ids=cert_id,
         contact_ids=str(contact_response.body.contact_list[0].contact_id),
         job_type="user"
     )
@@ -189,6 +189,22 @@ def deploy_cert(client: Client, cert_id: int, resource_ids: int) -> None:
         update_request, util_models.RuntimeOptions()
     )
     logging.info(f"已提交部署任务: {job_id}")
+
+def get_resources_id(client: Client,domain:str) -> str:
+    """获取对应的资源id"""
+    try:
+        logging.info(f"获取域名:{domain}绑定的云产品")
+        request = cas_models.ListCloudResourcesRequest(keyword=domain)
+        _resources = client.list_cloud_resources_with_options(request,util_models.RuntimeOptions())
+
+        resources_list:list[int] = []
+        for resources in _resources.body.data:
+            if resources.domain == domain and resources.enable_https == 1:
+                resources_list.append(resources.id)
+        logging.info(f"域名:{domain}找到绑定的{len(resources_list)}个云产品")
+        return ",".join(map(str, resources_list))
+    except Exception as error:
+        logging.error(error)
 
 def get_certificate_detail(client: Client, cert_id: int) -> Optional[tuple[str, str]]:
     """获取域名证书的证书文件信息"""
@@ -241,9 +257,18 @@ def main():
             logging.info(f"已为域名 {items.domain} 创建新证书: {new_cert_id}")
             # 根据类型，分别部署云平台，或者生成文件
             if items.deploy_type == DeployType.CLOUD:
-                # 这里调用云平台 SDK，使用 item.resource_id
-                logging.info(f"为域名：{items.domain}部署到云资源: {items.resource_id}")
-                deploy_cert(client, new_cert_id, items.resource_id)
+                # 获取资源 ID：优先使用配置文件中的值，否则自动获取
+                resource_id = items.resource_id
+                if not resource_id:
+                    logging.info(f"配置文件中未提供 resource_id，尝试自动获取域名 {items.domain} 绑定的云资源")
+                    resource_id = get_resources_id(client, items.domain)
+                
+                if not resource_id:
+                    logging.warning(f"未找到域名 {items.domain} 绑定的云资源，跳过部署")
+                    continue
+                
+                logging.info(f"为域名：{items.domain}部署到云资源：{resource_id}")
+                deploy_cert(client, new_cert_id, resource_id)
                 logging.info("部署成功!")
 
             elif items.deploy_type == DeployType.SERVER:

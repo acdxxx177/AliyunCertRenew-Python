@@ -233,10 +233,18 @@ crontab -e
 
 ```yaml
 domains:
+  # 方式 1：自动获取资源 ID（推荐）
   - domain: "example.com"
     deploy_type: "cloud"
-    resource_id: 256644 # 云资源 ID(暂未支持自动获取，后续可能增加)
+    # 不配置 resource_id 时会自动获取域名关联的云产品资源 ID
+
+  # 方式 2：手动指定资源 ID
+  - domain: "www.example.com"
+    deploy_type: "cloud"
+    resource_id: 256644 # 可选，手动指定云资源 ID，多个用半角逗号（,）分隔
 ```
+
+> **说明**：`resource_id` 字段可选。如果不配置，程序会自动获取域名关联的云产品资源 ID；如果找不到关联的资源 ID，会跳过部署。
 
 ### 服务器部署（Server）
 

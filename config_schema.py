@@ -11,7 +11,7 @@ class BaseDomainConfig(BaseModel):
 
 class CloudDeployConfig(BaseDomainConfig):
     deploy_type: DeployType = DeployType.CLOUD
-    resource_id: int = Field(..., description="云资源 ID，必须为整数")  # 云资源 ID (如 CDN/SLB 实例 ID)
+    resource_id: Optional[str] = Field(None, description="可选:云资源 ID，多个证书 ID 用半角逗号（,）")  # 云资源 ID (如 CDN/SLB 实例 ID)
 
 class ServerDeployConfig(BaseDomainConfig):
     deploy_type: DeployType = DeployType.SERVER

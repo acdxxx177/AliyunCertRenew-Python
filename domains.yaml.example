@@ -1,18 +1,25 @@
 # domains.yaml
 domains:
-  # 云资源类型
+  # 云资源类型（自动获取资源 ID）
   - domain: "example.com"
     deploy_type: "cloud"
-    resource_id: 256644
+    # resource_id 不配置时会自动获取域名关联的云产品资源 ID
+
+  # 云资源类型（手动指定资源 ID）
+  - domain: "www.example.com"
+    deploy_type: "cloud"
+    resource_id: 256644 # 可选，手动指定云资源 ID，多个用半角逗号（,）分隔
 
   # 服务器类型 1
   - domain: "api.example.com"
     deploy_type: "server"
     cert_path: "/etc/nginx/certs/mysite/www.pem"
     key_path: "/etc/nginx/certs/mysite/www.key"
+    reload_cmd: "nginx -s reload"
 
   # 服务器类型 2
   - domain: "doc.example.com"
     deploy_type: "server"
     cert_path: "/var/www/blog/ssl/www.pem"
     key_path: "/var/www/blog/ssl/www.key"
+    reload_cmd: "nginx -s reload"
