@@ -11,10 +11,8 @@ services:
       # 必需：阿里云 AccessKey
       - ALIYUN_ACCESS_KEY_ID_RENEW=${ALIYUN_ACCESS_KEY_ID_RENEW}
       - ALIYUN_ACCESS_KEY_SECRET_RENEW=${ALIYUN_ACCESS_KEY_SECRET_RENEW}
-      # 可选：定时任务配置
-      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 2 */3 * *}
       # 可选：日志配置
-      - LOG_OUTPUT=${LOG_OUTPUT:-file}
+      - LOG_OUTPUT=${LOG_OUTPUT:-console}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # 配置文件路径
       - DOMAINS_CONFIG_PATH=/app/config/domains.yaml
@@ -23,4 +21,5 @@ services:
       - ./domains.yaml:/app/config/domains.yaml:ro
       # 挂载日志目录
       - ./logs:/app/logs
-    restart: unless-stopped
+    # 容器运行完脚本后自动退出，不自动重启
+    # 如需在宿主机上设置定时任务，可使用 cron 或 systemd timer

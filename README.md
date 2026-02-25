@@ -1,9 +1,9 @@
 # AliyunCertRenew
 
-**基于 [AliyunCertRenew](https://github.com/lyc8503/AliyunCertRenew) 和[AliyunCertRenew-Python](https://github.com/wsgfz/AliyunCertRenew-Python/tree/main) 的 Python 移植版本，方便自行修改**  
+**基于 [AliyunCertRenew](https://github.com/lyc8503/AliyunCertRenew) 和 [AliyunCertRenew-Python](https://github.com/wsgfz/AliyunCertRenew-Python/tree/main) 的 Python 移植版本，方便自行修改**
 **注意：环境变量名有改动**
 
-本程序用于自动续期阿里云云上资源（如 CDN/函数计算）的免费 SSL 证书，支持定时任务自动执行。
+本程序用于自动续期阿里云云上资源（如 CDN/函数计算）的免费 SSL 证书。容器运行完脚本后自动退出，定时任务由宿主机管理。
 
 ---
 
@@ -74,7 +74,6 @@ domains:
 | `ALIYUN_ACCESS_KEY_SECRET_RENEW` | ✅   | -                          | 阿里云 AccessKey Secret                          |
 | `LOG_OUTPUT`                     | ❌   | `console`                  | 日志输出方式：`console` / `file` / `both`        |
 | `LOG_LEVEL`                      | ❌   | `INFO`                     | 日志级别：`DEBUG` / `INFO` / `WARNING` / `ERROR` |
-| `CRON_SCHEDULE`                  | ❌   | `0 2 */3 * *`              | 定时任务执行时间（cron 表达式）                  |
 | `DOMAINS_CONFIG_PATH`            | ❌   | `/app/config/domains.yaml` | 配置文件路径（Docker 内）                        |
 
 ---
@@ -96,7 +95,6 @@ cp .env.example .env
 ```bash
 ALIYUN_ACCESS_KEY_ID_RENEW=your_access_key_id
 ALIYUN_ACCESS_KEY_SECRET_RENEW=your_access_key_secret
-CRON_SCHEDULE=0 2 */3 * *
 LOG_OUTPUT=file
 ```
 
@@ -107,22 +105,35 @@ LOG_OUTPUT=file
 #### 4. 构建并启动
 
 ```bash
-docker-compose up -d
+docker-compose up
 ```
+
+> **注意**：容器运行完脚本后会自动退出，这是正常行为。如需定时执行，请在宿主机上配置 cron 或 systemd timer。
 
 #### 5. 查看日志
 
 ```bash
-docker-compose logs -f
+docker-compose logs
 ```
 
-#### 6. 停止/重启
+#### 6. 重新运行
 
 ```bash
-docker-compose stop    # 停止
-docker-compose start   # 启动
-docker-compose restart # 重启
-docker-compose down    # 停止并删除容器
+docker-compose up --force-recreate
+```
+
+#### 7. 在宿主机上配置定时任务
+
+编辑宿主机的 crontab：
+
+```bash
+crontab -e
+```
+
+添加以下行（每 3 天凌晨 2 点执行）：
+
+```bash
+0 2 */3 * * cd /path/to/AliyunCertRenew-Python && docker-compose up --force-recreate
 ```
 
 ---
@@ -138,33 +149,42 @@ docker build -t aliyun-cert-renew .
 #### 2. 运行容器
 
 ```bash
-docker run -d \
+docker run --rm \
   --name cert-renew \
   -e ALIYUN_ACCESS_KEY_ID_RENEW="your_access_key_id" \
   -e ALIYUN_ACCESS_KEY_SECRET_RENEW="your_access_key_secret" \
-  -e CRON_SCHEDULE="0 2 */3 * *" \
   -e LOG_OUTPUT="file" \
   -v $(pwd)/domains.yaml:/app/config/domains.yaml:ro \
   -v $(pwd)/logs:/app/logs \
   aliyun-cert-renew
 ```
 
+> **注意**：
+> - `--rm` 参数表示容器退出后自动删除容器实例
+> - 容器运行完脚本后会自动退出，这是正常行为
+
 #### 3. 查看日志
 
 ```bash
 # 查看容器日志
-docker logs -f cert-renew
+docker logs cert-renew
 
 # 查看应用日志文件
-cat logs/cron.log
+cat logs/aliyun_cert_renew_*.log
 ```
 
-#### 4. 更新配置
+#### 4. 在宿主机上配置定时任务
 
-修改 `domains.yaml` 后重启容器：
+编辑宿主机的 crontab：
 
 ```bash
-docker restart cert-renew
+crontab -e
+```
+
+添加以下行（每 3 天凌晨 2 点执行）：
+
+```bash
+0 2 */3 * * docker run --rm -e ALIYUN_ACCESS_KEY_ID_RENEW="your_access_key_id" -e ALIYUN_ACCESS_KEY_SECRET_RENEW="your_access_key_secret" -v /path/to/domains.yaml:/app/config/domains.yaml:ro -v /path/to/logs:/app/logs aliyun-cert-renew
 ```
 
 ---
@@ -200,7 +220,7 @@ python main.py
 crontab -e
 
 # 添加以下行（每 3 天凌晨 2 点执行）
-0 2 */3 * * cd /path/to/AliyunCertRenew && /usr/bin/python3 main.py
+0 2 */3 * * cd /path/to/AliyunCertRenew-Python && /usr/bin/python3 main.py
 ```
 
 ---
@@ -265,7 +285,7 @@ docker logs cert-renew
 ### 2. 进入容器检查
 
 ```bash
-docker exec -it cert-renew /bin/bash
+docker run --rm -it --entrypoint /bin/bash aliyun-cert-renew
 
 # 检查配置文件
 cat /app/config/domains.yaml
@@ -277,19 +297,19 @@ python main.py
 ### 3. 验证环境变量
 
 ```bash
-docker exec cert-renew env | grep ALIYUN
+docker run --rm -e ALIYUN_ACCESS_KEY_ID_RENEW="xxx" aliyun-cert-renew env | grep ALIYUN
 ```
 
 ### 4. 检查配置文件权限
 
 ```bash
-docker exec cert-renew ls -la /app/config/domains.yaml
+docker run --rm -v $(pwd)/domains.yaml:/app/config/domains.yaml:ro aliyun-cert-renew ls -la /app/config/domains.yaml
 ```
 
 ### 5. 查看应用日志
 
 ```bash
-cat logs/cron.log
+cat logs/aliyun_cert_renew_*.log
 ```
 
 ---
@@ -305,8 +325,6 @@ AliyunCertRenew-Python/
 ├── Dockerfile              # Docker 镜像配置
 ├── docker-compose.yml      # Docker Compose 配置
 ├── docker-entrypoint.sh    # 容器启动脚本
-├── crontab                 # 定时任务配置
-├── DOCKER_DEPLOY.md        # 详细 Docker 部署文档
 ├── README.md               # 项目说明
 └── LICENSE                 # 许可证
 ```
