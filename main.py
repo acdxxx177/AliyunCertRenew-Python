@@ -10,18 +10,55 @@ from alibabacloud_cas20200407 import models as cas_models
 from alibabacloud_tea_util import models as util_models
 
 
-def is_expiring_soon(expire_time: int, days=10) -> bool:
-    """计算时间，是否小于days
-        expire_time 时间戳(秒)
+def is_expiring_soon(expire_time: int, days: int = 10, max_check_months: int = 3) -> bool:
+    """
+    判断证书/任务是否快到期。
+    自动适配秒级 (10 位) 或毫秒级 (13 位) 时间戳。
+    
+    :param expire_time: 过期时间戳 (int)，支持秒或毫秒
+    :param days: 提前多少天预警，默认 10 天
+    :param max_check_months: 最大检查范围（月），默认 3 个月。若剩余时间超过此值，直接返回 False
+    :return: bool, True 表示快到期，False 表示正常或已过期
     """
     if not expire_time:
         return False
-    # days 天的总秒数
-    threshold = days * 24 * 60 * 60
-    current_time = int(time.time())
+
+    # 1. 获取当前时间（秒级）
+    current_time_sec = int(time.time())
     
-    # 如果 证书过期时间 - 当前时间 < 7天的秒数，说明快过期了
-    return (expire_time - current_time) < threshold
+    # 2. 自动识别并统一转换为【秒级】时间戳
+    expire_time_sec = expire_time
+    str_time = str(expire_time)
+    
+    if len(str_time) == 13:
+        # 毫秒转秒 (保留整数部分)
+        expire_time_sec = expire_time // 1000
+    elif len(str_time) < 10:
+        # 异常小的时间戳，视为无效或已远古过期
+        return False
+    elif len(str_time) > 13:
+        # 微秒或纳秒，按需处理，这里统一按毫秒逻辑降级处理或直接报错，视业务而定
+        # 此处假设如果是 16 位+，可能是误传，尝试按毫秒处理或视为无效
+        expire_time_sec = expire_time // 1_000_000 
+
+    # 3. 计算剩余秒数
+    remaining_seconds = expire_time_sec - current_time_sec
+
+    # 4. 边界情况处理
+    if remaining_seconds <= 0:
+        # 已经过期
+        return False
+    
+    # 5. 核心逻辑判断
+    threshold_seconds = days * 24 * 60 * 60
+    max_check_seconds = max_check_months * 30 * 24 * 60 * 60  # 粗略估算 3 个月秒数
+
+    # 如果剩余时间超过了最大检查范围（>3 个月），说明还早，直接返回 False
+    if remaining_seconds > max_check_seconds:
+        return False
+
+    # 如果剩余时间小于预警阈值（<10 天），返回 True
+    return remaining_seconds < threshold_seconds
 
 def setup_logging():
     """配置日志"""
